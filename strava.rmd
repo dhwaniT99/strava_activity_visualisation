@@ -1,1 +1,398 @@
+---
+title: "R Notebook"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r}
+library(base)
+library(tidyr)
+library(dplyr)
+library(plotly)
+library(lubridate)
+library(ggplot2)
+library(ggmap)
+library(plotKML)
+library(Xmisc)
+
+```
+
+```{r}
+df <- read.csv("~/Desktop/Data/strava_data/activities.csv")
+head(df)
+```
+
+```{r}
+#df$ActivityClean
+library(stringr)
+df$Date <- str_c(df$Activity.Date, ' ', df$Activity.year)
+df$Activity_Date <- strptime(df$Date , format = "%d-%b %Y")
+df$Activity_Date
+
+df[,"Activity.Date"] <- df[,"Date"]
+#Removing activity, year
+
+df <- df[,c('Activity.Name','Activity.year','Activity.Time','Elapsed.Time','Distance', 'Relative.Effort','Moving.Time', 'Max.Speed','Elevation.Gain','Elevation.Low','Elevation.High','Max.Heart.Rate','Average.Heart.Rate','Date')]
+#Removing activity gear column
+#So we want to plot a pie chart which represents the numerical proportion of the acitvity type from 2015 to 2021, i.e. plotting the proportion of Morning Ride, Evening Ride, Afternoon Ride and Night Ride 
+
+#when is the workout more efficient, plotting the calories and Activity name pie chart
+
+#so we will divide the proportion of the graph on the basis of the time where time from 12.00 AM to 11.59 PM is Morninb ficd, similaryly all th eimte will be divide on that basis and then we have group by all such elements like that and we can group by rides on the basis of time
+
+#Secondly, we will be doing pace analysis, as we have the elevation gain of the whole route in every gpx file, along with the time stamp where we can analyse the fastest and the slowest pace on the basis of elevation gain during the particular activity. 
+
+#Every activity has a max heart rate and average heart rate data as well, this can be used to classify the activities in moderate, intense and normal workout on the basis of the heart rate zones. 
+
+#Relative Effort shows the percieved exercetion of the particular acitvity as well, this can be used as a potential feature in our workout too, there are various other efforts as well. 
+
+#Plotting time series graphs where we can visualise, activites of a particular time period
+
+#Visualise the relative effort on the basis of the time of the day, i.e. visualising the activity which represents the 
+
+#Corelation between calarie and relative effort to 
+#Visualising the activities over the years
+#Activity Type on the basis of time 
+
+#Plot a pie chart, 
+
+
+#there are a couple of NA values however, we first want to plot the pie chart which shows the distribution of the rides through out four years. 
+
+c <- unique(df$Activity.Name)
+d <- table(df$Activity.Name)
+
+#Here there are a couple of values which have \xca which happens to be some random value generated and then we move forward with merging Night ride and Night Ride to be the same. 
+
+#df$Activity.Name <- grep("\xca", df$Activity.Name)
+#f$Activity.Name
+df$Activity.Name <- gsub("[*\xca]", "", df$Activity.Name)
+
+unique(df$Activity.Name)
+
+#Here there are various activity names, hence if we want to do that we group by the acivities on the basis of time and then name them as Morning Night Afternoon and Evening Ride.
+
+table(df$Activity.Name)
+
+typeof(df$Activity.Name)
+
+library(dplyr)
+
+df$Activity.Time <- strptime(df$Activity.Time,format = "%H:%m:%s %p")
+
+
+
+```
+
+```{r}
+#Plotting the 
+
+library(plotly)
+fig <- plot_ly(df, type = 'scatter', mode = 'lines')%>%
+  add_trace(x = df$lon, y = df$lat)%>%
+  layout(showlegend = F)
+fig <- fig %>%
+  layout(
+         xaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         yaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         plot_bgcolor='#e5ecf6', width = 900)
+
+
+fig
+
+```
+
+```{r}
+
+#distribution of Rides over the years
+#library(plotly)
+
+#labels = c('lat','long','ele')
+#values = select(df , 1,2,3)
+
+#fig <- plot_ly(type='pie', labels=labels, values=values, 
+#               textinfo='label+percent',
+#               insidetextorientation='radial')
+#fig
+```
+
+```{r}
+library(plotly)
+
+# fig <- fig %>% add_trace( ... )
+# fig <- fig %>% layout( ... ) 
+
+library(dash)
+library(dashCoreComponents)
+library(dashHtmlComponents)
+
+app <- Dash$new()
+app$layout(
+    htmlDiv(
+        list(
+            dccGraph(figure=fig) 
+        )
+     )
+)
+
+app$run_server(debug=TRUE, dev_tools_hot_reload=FALSE)
+
+```
+
+
+
+
+```{r}
+library(plotKML)
+library(XML)
+
+geodf <-  readGPX("/Users/dhwani/Desktop/Data/strava_data/activities/456313795.gpx")
+
+shift.vec <- function (vec, shift) {
+  if(length(vec) <= abs(shift)) {
+    rep(NA ,length(vec))
+  }else{
+    if (shift >= 0) {
+      c(rep(NA, shift), vec[1:(length(vec)-shift)]) }
+    else {
+      c(vec[(abs(shift)+1):length(vec)], rep(NA, abs(shift))) } } }
+
+geodf$lat.p1 <- shift.vec(geodf$lat, -1)
+geodf$lon.p1 <- shift.vec(geodf$lon, -1)
+
+pfile <- htmlTreeParse(file = "/Users/dhwani/Desktop/Data/strava_data/activities/456313795.gpx", error = function(...) {
+}, useInternalNodes = T)
+
+elevations <- as.numeric(xpathSApply(pfile, path = "//trkpt/ele", xmlValue))
+times <- xpathSApply(pfile, path = "//trkpt/time", xmlValue)
+coords <- xpathSApply(pfile, path = "//trkpt", xmlAttrs)
+# Extract latitude and longitude from the coordinates
+lats <- as.numeric(coords["lat",])
+lons <- as.numeric(coords["lon",])
+
+geodf <- data.frame(lat = lats, lon = lons, ele = elevations, time = times)
+rm(list=c("elevations", "lats", "lons", "pfile", "times", "coords"))
+head(geodf)
+
+plot(rev(geodf$lon), rev(geodf$lat), type = "l", col = "red", lwd = 3, bty = "n", ylab = "Latitude", xlab = "Longitude")
+
+fig <- plot_ly(geodf, x =rev(geodf$lon) , y = rev(geodf$lat), type = 'scatter', mode = 'lines' )
+fig
+
+
+
+
+```
+
+```{r}
+#adding all the coordinates of all the activities in GPX files.
+
+library(tidyr)
+library(tidyverse)
+library(plotKML)
+
+files <- list.files(path="/Users/dhwani/Desktop/export_22293992/activities", pattern = "*.gpx",full.names = T)
+list(files)
+
+trks1 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1011255489.gpx", tracks = TRUE)
+trks2 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1014337963.gpx", tracks = TRUE)
+trks3 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1020046528.gpx", tracks = TRUE)
+trks4 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1032603690.gpx", tracks = TRUE)
+trks5 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1037221540.gpx", tracks = TRUE)
+trks6 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1038839050.gpx", tracks = TRUE)
+trks7 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1040820341.gpx", tracks = TRUE)
+trks8 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1046670633.gpx", tracks = TRUE)
+trks9 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1260608781.gpx", tracks = TRUE)
+trks10 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1405372528.gpx", tracks = TRUE)
+trks11<- readGPX("/Users/dhwani/Desktop/export_22293992/activities/1405372868.gpx", tracks = TRUE)
+trks12 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/5964755256.gpx", tracks = TRUE)
+trks13 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6102134068.gpx", tracks = TRUE)
+trks14 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6107195950.gpx", tracks = TRUE)
+trks15 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6111841667.gpx", tracks = TRUE)
+trks16 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6118316052.gpx", tracks = TRUE)
+trks17 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6123486209.gpx", tracks = TRUE)
+trks18 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6129172599.gpx", tracks = TRUE)
+trks19 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6140990413.gpx", tracks = TRUE)
+trks20 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6145459128.gpx", tracks = TRUE)
+trks21 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6151790905.gpx", tracks = TRUE)
+trks22 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6201329047.gpx", tracks = TRUE)
+trks23 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6210896942.gpx", tracks = TRUE)
+trks24 <- readGPX("/Users/dhwani/Desktop/export_22293992/activities/6257216107.gpx", tracks = TRUE)
+
+
+route1 <- data.frame(trks1$tracks[[1]]$`Evening Run`)
+route2 <- data.frame(trks2$tracks[[1]]$`Evening Run`)
+route3 <- data.frame(trks3$tracks[[1]]$`Morning Ride`)
+route4 <- data.frame(trks4$tracks[[1]]$`Morning Ride`)
+route5 <- data.frame(trks5$tracks[[1]]$`Morning Ride`)
+route6 <- data.frame(trks6$tracks[[1]]$`Morning Ride`)
+route7 <- data.frame(trks7$tracks[[1]]$`Afternoon Run`)
+route8 <- data.frame(trks8$tracks[[1]]$`Evening Ride`)
+route9 <- data.frame(trks9$tracks[[1]]$`Afternoon Run`)
+route10 <- data.frame(trks10$tracks[[1]]$`Morning Run`)
+route11 <- data.frame(trks11$tracks[[1]]$`Morning Run`)
+route12 <- data.frame(trks12$tracks[[1]]$`Evening Walk`)
+route13 <- data.frame(trks13$tracks[[1]]$`First walk in Boston `)
+
+route14 <- data.frame(trks14$tracks[[1]]$`Morning Walk`)
+route15 <- data.frame(trks15$tracks[[1]]$`Fall `)
+route16 <- data.frame(trks16$tracks[[1]]$`Short walk`)
+route17 <- data.frame(trks17$tracks[[1]]$`Across the river `)
+route18 <- data.frame(trks18$tracks[[1]]$`Afternoon Walk`)
+route19 <- data.frame(trks19$tracks[[1]]$`Run walk run`)
+route20 <- data.frame(trks20$tracks[[1]]$`Morning Walk`)
+route21 <- data.frame(trks21$tracks[[1]]$`Weekend blast`)
+route22 <- data.frame(trks22$tracks[[1]]$`Morning Walk`)
+route23 <- data.frame(trks23$tracks[[1]]$`Morning Walk`)
+route24 <- data.frame(trks24$tracks[[1]]$`Morning Walk`)
+
+df_1 <- bind_rows(route1,route2,route3, route4, route5, route6, route7, route8, route9, route10, route11, route12, route13, route14, route15, route16, route17, route18, route19, route20, route21, route22, route23, route24)
+
+
+#Extracting the latitude and longitude of all the activites
+get_lat_lon <- function(df){
+  df <- df[,c(1,2,3)]
+}
+
+route1 <- get_lat_lon(route1)
+route2 <- get_lat_lon(route2)
+route3 <- get_lat_lon(route3)
+route4 <- get_lat_lon(route4)
+route5 <- get_lat_lon(route5)
+route6 <- get_lat_lon(route6)
+route7 <- get_lat_lon(route7)
+route8 <- get_lat_lon(route8)
+route9 <- get_lat_lon(route9)
+route10 <- get_lat_lon(route10)
+route11 <- get_lat_lon(route11)
+route12 <- get_lat_lon(route12)
+route13 <- get_lat_lon(route13)
+route14 <- get_lat_lon(route14)
+route15 <- get_lat_lon(route15)
+route16 <- get_lat_lon(route16)
+route17 <- get_lat_lon(route17)
+route18 <- get_lat_lon(route18)
+route19 <- get_lat_lon(route19)
+route20 <- get_lat_lon(route20)
+route21 <- get_lat_lon(route21)
+route22 <- get_lat_lon(route22)
+route23 <- get_lat_lon(route23)
+```
+
+```{r}
+#Plotting routes on static map
+library(ggmap)
+
+register_google(key = "AIzaSyASpNyC1jMyQWfQXPB3jvP7gZtqF5bMHL0")
+
+#since we want a static map and we want to plot all the activities, we decided to take the mean of the latitude and the longitude. 
+
+lon_1 <- median(df_1$lon)
+lat_1 <- median(df_1$lat)
+
+mapImageData <- get_map(center = c(lon = 72.23048, lat = 21.68353), zoom = 11,
+# size = c(500, 500),
+maptype = c("terrain"))
+
+longitude <- df_1$lon
+
+longitude
+
+latitude <- df_1$lat
+
+
+
+
+qmplot(lon, lat, data = df_1, maptype = "toner-lite", color = I("red"))
+
+```
+
+```{r}
+#plotting static map  which does not require Mapbox Access Token
+
+latitude <- df_1$lat
+
+longitude <- df_1$lon
+
+library(dplyr)
+library(plotly)
+
+fig_1 <- df
+fig_1 <- fig_1 %>%
+  plot_ly(
+    lat = latitude,
+    lon = longitude,
+    marker = list(color = "dark red"),
+    type = 'scattermapbox',
+    hovertext = df[,"ele"]) 
+fig_1 <- fig_1 %>%
+  layout( title = "All routes travelled, scroll to Boston",
+    mapbox = list(
+      style = 'open-street-map',
+      zoom =2.5,
+      center = list(lon = 72.23048, lat = 21.68353))) 
+
+fig_1
+
+
+
+```
+
+```{r}
+
+#Next step : https://www.strava.com/heatmap#7.00/-120.90000/38.36000/hot/all
+#I am planning to do something like this where I get to visualise the most travelled route, simple logic would be to iterate over every single coordinates and the number of occurance of those coordinates will be considered as one, where we calculate the frequency of the coordinates. 
+
+```
+
+
+```{r}
+
+
+
+
+
+lat_1 <- max(df_1$lat)
+lon_1 <- max(df_1$lon)
+
+lat_1
+lon_1
+
+size_x, size_y = 1000, 1000
+
+
+df2 <- as.integer(select(df_1, (df_1$lat > lat_min) & (df_1$lat < lat_max) & 
+         (df_1$lon > lat_min) & (df_1$lon < lat_max)))
+
+df2['x'] = as.integer(size_x * (df2$lon - min(df2$lon)/(max(df2$lon) - min(df2$lon)
+df2['y'] = as.integer(size_y * (df2$lat - min(df2$lat)/(df2$lat - df2.lat.min())).astype(int)
+
+                      
+
+
+```
+```{r}
+
+#finding out the maximum and minimum latitude for the project
+
+l_max <- max(latitude)
+lat_min <- min(longitude)
+
+#The values are converted to integers since we will use them to address points in a numpy matrix.
+
+size_x, size_y = 1000, 1000
+
+size_x <- 1000
+size_y <- 1000
+
+
+
+
+```
+
 
